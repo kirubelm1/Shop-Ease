@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEase | Simple Online Shopping</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4a6bff;
+      --secondary: #ff6b6b;
+      --accent: #4a6bff;
+      --light: #f8f9fa;
+      --dark: #2c3e50;
+      --text: #333;
+      --text-light: #7f8c8d;
+      --white: #ffffff;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      color: var(--text);
+      background-color: var(--light);
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, h4 {
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Header */
+    header {
+      background-color: var(--white);
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 15px 0;
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .logo span {
+      color: var(--secondary);
+    }
+
+    .search-bar {
+      flex-grow: 1;
+      max-width: 500px;
+      margin: 0 30px;
+      position: relative;
+    }
+
+    .search-bar input {
+      width: 100%;
+      padding: 12px 20px;
+      border: 1px solid #ddd;
+      border-radius: 30px;
+      font-size: 16px;
+      transition: var(--transition);
+      padding-left: 45px;
+    }
+
+    .search-bar input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(74, 107, 255, 0.2);
+    }
+
+    .search-bar i {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+    }
+
+    .cart-icon {
+      position: relative;
+      cursor: pointer;
+      font-size: 22px;
+      color: var(--primary);
+      transition: var(--transition);
+    }
+
+    .cart-icon:hover {
+      color: var(--secondary);
+    }
+
+    .cart-count {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background-color: var(--secondary);
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    /* Products Section */
+    .products-section {
+      padding: 40px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .section-title h2 {
+      font-size: 28px;
+      color: var(--primary);
+    }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 25px;
+    }
+
+    .product-card {
+      background-color: var(--white);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+      will-change: transform, opacity;
+      animation: fadeScale 0.5s ease forwards;
+    }
+
+    .product-card:nth-child(1) { animation-delay: 0.05s; }
+    .product-card:nth-child(2) { animation-delay: 0.1s; }
+    .product-card:nth-child(3) { animation-delay: 0.15s; }
+    .product-card:nth-child(4) { animation-delay: 0.2s; }
+    .product-card:nth-child(5) { animation-delay: 0.25s; }
+    .product-card:nth-child(6) { animation-delay: 0.3s; }
+    .product-card:nth-child(7) { animation-delay: 0.35s; }
+    .product-card:nth-child(8) { animation-delay: 0.4s; }
+
+    .product-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+      background: linear-gradient(145deg, #ffffff, #f0f0f0);
+    }
+
+    .product-image {
+      height: 200px;
+      overflow: hidden;
+      position: relative;
+      background-color: #f5f5f5;
+    }
+
+    .product-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: transform 0.3s ease;
+      padding: 20px;
+    }
+
+    .product-card:hover .product-image img {
+      transform: scale(1.05);
+    }
+
+    .product-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: var(--secondary);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+    }
+
+    .product-card:hover .product-badge {
+      transform: scale(1.05);
+    }
+
+    .product-info {
+      padding: 15px;
+    }
+
+    .product-title {
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: var(--dark);
+      font-weight: 500;
+    }
+
+    .product-price {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--secondary);
+      margin-bottom: 12px;
+    }
+
+    .product-rating {
+      color: #f39c12;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+
+    .add-to-cart {
+      width: 100%;
+      padding: 10px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .add-to-cart i {
+      margin-right: 8px;
+    }
+
+    .add-to-cart:hover {
+      background-color: #3a5bef;
+      transform: scale(1.03);
+    }
+
+    /* Cart Modal */
+    .cart-modal {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      max-width: 400px;
+      height: 100vh;
+      background-color: var(--white);
+      box-shadow: -5px 0 30px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.4s ease;
+      overflow-y: auto;
+    }
+
+    .cart-modal.open {
+      transform: translateX(0);
+    }
+
+    .cart-header {
+      padding: 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cart-header h3 {
+      font-size: 20px;
+      color: var(--primary);
+    }
+
+    .close-cart {
+      font-size: 22px;
+      cursor: pointer;
+      color: var(--text-light);
+      transition: var(--transition);
+    }
+
+    .close-cart:hover {
+      color: var(--secondary);
+    }
+
+    .cart-items {
+      padding: 20px;
+    }
+
+    .cart-item {
+      display: flex;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .cart-item:last-child {
+      border-bottom: none;
+    }
+
+    .cart-item-img {
+      width: 70px;
+      height: 70px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-right: 15px;
+      background-color: #f5f5f5;
+    }
+
+    .cart-item-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 10px;
+    }
+
+    .cart-item-details {
+      flex-grow: 1;
+    }
+
+    .cart-item-title {
+      font-weight: 500;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .cart-item-price {
+      color: var(--secondary);
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .remove-item {
+      color: var(--text-light);
+      cursor: pointer;
+      transition: var(--transition);
+      align-self: flex-start;
+    }
+
+    .remove-item:hover {
+      color: var(--secondary);
+    }
+
+    .cart-total {
+      padding: 20px;
+      background-color: #f8f9fa;
+      margin-top: auto;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 15px;
+    }
+
+    .total-row:last-child {
+      margin-bottom: 0;
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .checkout-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--secondary);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 15px;
+    }
+
+    .checkout-btn:hover {
+      background-color: #e05555;
+    }
+
+    .checkout-form {
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Product Details Modal */
+    .product-details-modal {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      max-width: 400px;
+      height: 100vh;
+      background-color: var(--white);
+      box-shadow: -5px 0 30px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.4s ease;
+      overflow-y: auto;
+    }
+
+    .product-details-modal.open {
+      transform: translateX(0);
+    }
+
+    .product-details-header {
+      padding: 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .product-details-header h3 {
+      font-size: 20px;
+      color: var(--primary);
+    }
+
+    .close-product-details {
+      font-size: 22px;
+      cursor: pointer;
+      color: var(--text-light);
+      transition: var(--transition);
+    }
+
+    .close-product-details:hover {
+      color: var(--secondary);
+    }
+
+    .product-details-content {
+      padding: 20px;
+    }
+
+    .product-details-image {
+      width: 100%;
+      height: 200px;
+      overflow: hidden;
+      margin-bottom: 15px;
+      background-color: #f5f5f5;
+      border-radius: 5px;
+    }
+
+    .product-details-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 20px;
+    }
+
+    .product-details-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 10px;
+    }
+
+    .product-details-price {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--secondary);
+      margin-bottom: 15px;
+    }
+
+    .product-details-description {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 20px;
+      line-height: 1.8;
+    }
+
+    /* Overlay */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+      opacity: 0;
+      visibility: hidden;
+      transition: var(--transition);
+    }
+
+    .overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Footer */
+    footer {
+      background-color: var(--dark);
+      color: var(--white);
+      padding: 40px 0 20px;
+      text-align: center;
+    }
+
+    .footer-content {
+      margin-bottom: 20px;
+    }
+
+    .footer-contact {
+      margin: 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-contact p {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .footer-contact i {
+      color: var(--secondary);
+      font-size: 16px;
+    }
+
+    .footer-contact a {
+      color: var(--white);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    .footer-contact a:hover {
+      color: var(--secondary);
+    }
+
+    .footer-bottom {
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 14px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+      }
+
+      .logo {
+        margin-bottom: 15px;
+      }
+
+      .search-bar {
+        width: 100%;
+        margin: 15px 0;
+      }
+
+      .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
+
+      .cart-modal,
+      .product-details-modal {
+        max-width: 100%;
+      }
+
+      .footer-contact {
+        gap: 12px;
+      }
+    }
+
+    /* Animations */
+    @keyframes fadeScale {
+      0% {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes graffitiReveal {
+      0% {
+        transform: scaleX(0);
+        opacity: 0;
+      }
+      50% {
+        transform: scaleX(1.1);
+        opacity: 0.5;
+      }
+      100% {
+        transform: scaleX(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    /* Notification */
+    .cart-notification {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #2ecc71;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1100;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .cart-notification.show {
+      opacity: 1;
+    }
+
+    .cart-notification i {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+
+    .cart-notification.success {
+      background: url('https://www.transparenttextures.com/patterns/canvas.png'), linear-gradient(45deg, #ff6b6b, #4a6bff);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      padding: 15px 25px;
+      border-radius: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      animation: graffitiReveal 0.5s ease forwards;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .cart-notification.success i {
+      font-size: 22px;
+      color: #fff;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .cart-notification.success span {
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="container">
+      <div class="header-content">
+        <a href="#" class="logo">Shop<span>Ease</span></a>
+        
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Search for products...">
+        </div>
+        
+        <div class="cart-icon" id="cartIcon">
+          <i class="fas fa-shopping-bag"></i>
+          <span class="cart-count" id="cartCount">0</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Products Section -->
+  <section class="products-section">
+    <div class="container">
+      <div class="section-title">
+        <h2>Our Products</h2>
+      </div>
+      
+      <div class="products-grid" id="products">
+        <!-- Products will be loaded here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Cart Modal -->
+  <div class="cart-modal" id="cartModal">
+    <div class="cart-header">
+      <h3>Your Shopping Bag</h3>
+      <span class="close-cart" id="closeCart">×</span>
+    </div>
+    
+    <div class="cart-items" id="cartItems">
+      <!-- Cart items will be loaded here -->
+      <div class="empty-cart-message" style="text-align: center; padding: 40px 0;">
+        <i class="fas fa-shopping-bag" style="font-size: 40px; color: #ddd; margin-bottom: 15px;"></i>
+        <h4>Your bag is empty</h4>
+        <p>Start shopping to add items to your bag</p>
+      </div>
+    </div>
+    
+    <div class="cart-total" id="cartTotal" style="display: none;">
+      <div class="total-row">
+        <span>Subtotal</span>
+        <span id="subtotal">$0.00</span>
+      </div>
+      <div class="total-row">
+        <span>Shipping</span>
+        <span>Free</span>
+      </div>
+      <div class="total-row">
+        <span>Total</span>
+        <span id="total">$0.00</span>
+      </div>
+      
+      <button class="checkout-btn" id="checkoutBtn">Proceed to Checkout</button>
+    </div>
+    
+    <div class="checkout-form" id="checkoutForm" style="display: none;">
+      <h3 style="margin-bottom: 15px; font-size: 18px;">Shipping Information</h3>
+      
+      <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <input type="text" id="phone" placeholder="Enter your phone number" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="city">City</label>
+        <input type="text" id="city" placeholder="Enter your city" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="location">Specific Location</label>
+        <input type="text" id="location" placeholder="Enter your address" required>
+      </div>
+      
+      <button class="checkout-btn" onclick="placeOrder()">Place Order</button>
+    </div>
+  </div>
+  
+  <!-- Product Details Modal -->
+  <div class="product-details-modal" id="productDetailsModal">
+    <div class="product-details-header">
+      <h3>Product Details</h3>
+      <span class="close-product-details" id="closeProductDetails">×</span>
+    </div>
+    <div class="product-details-content" id="productDetailsContent">
+      <!-- Product details will be loaded here -->
+    </div>
+  </div>
+  
+  <div class="overlay" id="overlay"></div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <p>ShopEase - Shop Online Save Time</p>
+      </div>
+      <div class="footer-contact">
+        <p><i class="fas fa-building"></i> Kirubel Mesfin Production</p>
+        <p><i class="fas fa-envelope"></i> <a href="mailto:kirusu1.bm@gmail.com">kirusu1.bm@gmail.com</a></p>
+        <p><i class="fas fa-phone"></i> <a href="tel:+251911604204">+251911604204</a></p>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 ShopEase. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="customer.js"></script>
+</body>
+</html>

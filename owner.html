@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Owner Dashboard | E-Commerce Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-dark: #3a56d4;
+      --danger: #f72585;
+      --danger-dark: #e5177b;
+      --success: #4cc9f0;
+      --success-dark: #2fb8e0;
+      --warning: #f8961e;
+      --warning-dark: #e6870d;
+      --dark: #212529;
+      --light: #f8f9fa;
+      --gray: #6c757d;
+      --gray-light: #e9ecef;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background-color: #f5f7fa;
+      color: var(--dark);
+    }
+    
+    .dashboard {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 100vh;
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      background: linear-gradient(180deg, #2b2d42 0%, #1a1a2e 100%);
+      color: white;
+      padding: 1.5rem 0;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2rem;
+      padding: 0 1rem;
+    }
+    
+    .logo i {
+      font-size: 2rem;
+      margin-right: 0.75rem;
+      color: var(--primary);
+    }
+    
+    .logo h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    .nav-menu {
+      list-style: none;
+    }
+    
+    .nav-item {
+      margin-bottom: 0.5rem;
+    }
+    
+    .nav-link {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      color: rgba(255, 255, 255, 0.8);
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    
+    .nav-link:hover, .nav-link.active {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+      border-left: 3px solid var(--primary);
+    }
+    
+    .nav-link i {
+      margin-right: 0.75rem;
+      font-size: 1.1rem;
+    }
+    
+    /* Main Content */
+    .main-content {
+      padding: 2rem;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    
+    .search-bar {
+      display: flex;
+      align-items: center;
+      background-color: white;
+      border-radius: 30px;
+      padding: 0.5rem 1rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      width: 300px;
+    }
+    
+    .search-bar input {
+      border: none;
+      outline: none;
+      padding: 0.5rem;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+    
+    .search-bar i {
+      color: var(--gray);
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+    }
+    
+    .user-info img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 0.75rem;
+      object-fit: cover;
+    }
+    
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+      background-color: white;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .stat-card .icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    
+    .stat-card.primary .icon {
+      background-color: rgba(67, 97, 238, 0.1);
+      color: var(--primary);
+    }
+    
+    .stat-card.success .icon {
+      background-color: rgba(76, 201, 240, 0.1);
+      color: var(--success);
+    }
+    
+    .stat-card.warning .icon {
+      background-color: rgba(248, 150, 30, 0.1);
+      color: var(--warning);
+    }
+    
+    .stat-card.danger .icon {
+      background-color: rgba(247, 37, 133, 0.1);
+      color: var(--danger);
+    }
+    
+    .stat-card h3 {
+      font-size: 1.75rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .stat-card p {
+      color: var(--gray);
+      font-size: 0.9rem;
+    }
+    
+    /* Charts */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    
+    .chart-container {
+      background-color: white;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .chart-container h3 {
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      color: var(--dark);
+    }
+    
+    /* Products and Orders */
+    .content-section {
+      background-color: white;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      margin-bottom: 2rem;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    
+    .section-header h2 {
+      font-size: 1.25rem;
+      color: var(--dark);
+    }
+    
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .btn i {
+      margin-right: 0.5rem;
+    }
+    
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    .btn-danger {
+      background-color: var(--danger);
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background-color: var(--danger-dark);
+    }
+    
+    /* Tables */
+    .table-responsive {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    
+    th {
+      font-weight: 600;
+      color: var(--dark);
+      background-color: #f8f9fa;
+    }
+    
+    tr:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .badge {
+      padding: 0.35rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .badge-primary {
+      background-color: rgba(67, 97, 238, 0.1);
+      color: var(--primary);
+    }
+    
+    .badge-success {
+      background-color: rgba(40, 167, 69, 0.1);
+      color: #28a745;
+    }
+    
+    .badge-warning {
+      background-color: rgba(255, 193, 7, 0.1);
+      color: #ffc107;
+    }
+    
+    .badge-danger {
+      background-color: rgba(220, 53, 69, 0.1);
+      color: #dc3545;
+    }
+    
+    .action-btn {
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-right: 0.5rem;
+    }
+    
+    .action-btn i {
+      margin-right: 0;
+    }
+    
+    .action-btn.edit {
+      background-color: rgba(13, 110, 253, 0.1);
+      color: #0d6efd;
+    }
+    
+    .action-btn.delete {
+      background-color: rgba(220, 53, 69, 0.1);
+      color: #dc3545;
+    }
+    
+    .action-btn:hover {
+      opacity: 0.8;
+    }
+    
+    /* Form */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: var(--dark);
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--gray-light);
+      border-radius: 5px;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+    
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+    }
+    
+    textarea.form-control {
+      min-height: 120px;
+      resize: vertical;
+    }
+    
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--gray);
+      font-size: 0.9rem;
+      border-top: 1px solid var(--gray-light);
+    }
+    
+    /* Modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .modal-content {
+      background-color: white;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 500px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      transform: translateY(-20px);
+      transition: all 0.3s ease;
+    }
+    
+    .modal.active .modal-content {
+      transform: translateY(0);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    
+    .modal-header h3 {
+      font-size: 1.25rem;
+      color: var(--dark);
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--gray);
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+      
+      .sidebar {
+        display: none;
+      }
+      
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="logo">
+        <i class="fas fa-store"></i>
+        <h2>Admin Panel</h2>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a href="#" class="nav-link active">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#products-section" class="nav-link">
+            <i class="fas fa-box-open"></i>
+            <span>Products</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#orders-section" class="nav-link">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Orders</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#analytics-section" class="nav-link">
+            <i class="fas fa-chart-line"></i>
+            <span>Analytics</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Header -->
+      <div class="header">
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search...">
+        </div>
+        <div class="user-info">
+          <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAflBMVEX///8oKCgfHx9nZ2cAAAAlJSUXFxcjIyMUFBQbGxsMDAwWFhYJCQmRkZEZGRnx8fH5+fnDw8Pp6enOzs7U1NQxMTF/f3/c3NyYmJgsLCxubm5hYWFUVFRGRka3t7dZWVmjo6M4ODiGhobj4+O7u7uoqKg/Pz98fHyOjo5LS0uMjTtVAAAGEklEQVR4nO2di3ayMAzHB7ZSEEXwAuKdTebe/wU/mfM7OkULhCbs5PcE/Z82zYU0vL0xDMMwDMMwDMMwDMMwDMMwDMMwDEOO98lm+Jn2emmaJeE0wF4OMNEhXdieGrl2gTvwlJNn4Rh7WVBEu1woW1o3SMf1RPrxF0ROU6Uc6zG2P0si7AU2ZLJVdom881YqO+uySUZL8VTft8aRSrDXWZud91Lft0ZvP8Veai2ilaejr8DxhtirrUHoaG3gD2rVOWtMhHyt6wpbxdhLrsZcVNJ3Qg5C7EVX4VPbBK8kqg/sZevzqaoLPEkUndnFzK8jsJDYEa+xq2yD/yVa79iL12FScwcL7HUHQvHIquYmbhmk2Ot/zdJtINCyxAZbwCsODc5ogZTEg5vAb3JGC1zi5zRtdkYLaHvFaS1Xf4vzha3iGb0q+UQZgnD0Nm14zZyRe2wd5aQQW2hZPllLjGqHa7fYS2wlZSR9GIVWn2p46jT1hf8VEi3bTGqkvY9xiAbgWXNvf0HQLNrkZcX76qgdtphHxCMwgZazxVbziA2YGZ4Q2GoeAWiGJ4UUKzZbODM8GSLBRDiYQXnDAjfD1nMPVMh2xllh67kHJq+4IGfYeu4BvUotKelFNQeA9P4Km973/WQAqtCll16ApU5nRvQi0yFg0HZiQE9h8vcV/vlTuoO9S116dymst5AOvc8XIazHt7D13BODxqUyx9ZzTwB6l9o9bD33jNeQ2VOfYjcfUEn/jEexsA/qEAU9ZwFZED5dNAtsNY8IFnCG6M6x1TxkCWeIHs2PpHBRjbTpRTQFAVilxqbajwF2TIke0re3D6BNlDN6Zagf9jC3KcmA5swBxiX6NO+ZAhiX6H5i63gCSKLvU4zYLowBLFEdsVU8ZdM4D5Yzulb4zbapT/QJfjm8Ifr9lLIi1NtL35p6DKoR6Q2fTT7RiAn28nXI65uiv8NevBbBom7PgqLs66+JZb3bZkCwhFjCxKsjcUCwO6GUeFD9oKru7GBBPKvaISW6YoMXgm2lIFwKujlhKfMKL4HtEcUa90vCmWYVXPrLDkQyjwjmvo7zVwvqwfYTpivx4lKVrjh2dAN/mKw8t9weHeVmlDN6PabzfclZdfrrXbf374cgXD48qnLVyQv0F9FHtl70y2xxtp5/dPqQTpNceO6TlzTfo5RmCcWebg3iYS76Oj5fjsR+SK8D6gXjw1ZpybuI9FYbst8qHhAMF17V3MLxrM74xSjTO533GynmXbh2gmO/fuvQaER/Hw+WalIvlQNrhy3hKdN1rfLFjUYvp+s8xtmrMFsLR8yJXquTHKoXQ+Uk68JJ6XTE6jgEx/AFW9AGWsujNr8t3kM+Pixw96QCudCGfHt4xnEJNdUcKs7X00OKA7awCwloh/cVVGqoQ9CHhzf4JGYrtCiQhsTWjugZ/IPadLTXS3zk6yZslEnoIHG79qPGqYSORMTXpMEM3tHf4yzwUg2A4Ww6uGgfh3ewwXY53g5HIOxjtacgzQExYoRnHJQJC0fYV7HPweg5jU0KPEk0ny2uIN/ivcY23k20aTta+43pxtox4Ds1PaRl1u8nZq2wwGz5LWg94H4k0WT1bQg7IUIPk8MUIV+L6iMX5jYReASGLuZGDUI8jKmD3Ju6TkPTvvCCsem7gC+aq2Fq+i7s6LlKGJpDgHTPFBi6a9bm8sLfOGsTAiEHsVambyKJAp6tVw0jxxTtJi0wcZviRGwXTERuEzxfUeC336UBPFqvKqP2s0SQP1jUx8CELFQzNDHHDTFkO9N64AY7Wa8GrX9ORPX3Bartb8JzMx/Uyml9LAjo4PU6tD7oG3Tweh1an+SGfdGcopp2BY6xSjRXCtstR0X4e+i16xDfCShsNwmOWaEBhe12LUxZYecVUjil7dphRMAftpw+YXz8vcVrVyB2EcNAPRFqgGdt2u86Qfo6ekG232zafGxgI0y0ffcwC6auiX/qjdd4hQw7N9KOEXxhVaPU2lC/yTgTDcc/1sI2+Xo2Tl1vZJtk5Lk9sy2mQXhMe+ZIj2EXhhEwDMMwDMMwDMMwDMMwDMMwDMMwTLf5B5DLaqgMRNmaAAAAAElFTkSuQmCC" alt="User">
+          <span>Admin</span>
+        </div>
+      </div>
+      
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <div class="icon">
+            <i class="fas fa-money-bill-wave"></i>
+          </div>
+          <h3 id="total-revenue">$0</h3>
+          <p>Total Revenue</p>
+        </div>
+        <div class="stat-card success">
+          <div class="icon">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <h3 id="total-orders">0</h3>
+          <p>Total Orders</p>
+        </div>
+        <div class="stat-card warning">
+          <div class="icon">
+            <i class="fas fa-boxes"></i>
+          </div>
+          <h3 id="total-products">0</h3>
+          <p>Total Products</p>
+        </div>
+        <div class="stat-card danger">
+          <div class="icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <h3 id="pending-orders">0</h3>
+          <p>Pending Orders</p>
+        </div>
+      </div>
+      
+      <!-- Charts -->
+      <div id="analytics-section" class="charts-grid">
+        <div class="chart-container">
+          <h3>Sales Overview</h3>
+          <canvas id="salesChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Order Status</h3>
+          <canvas id="orderStatusChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Products Section -->
+      <div id="products-section" class="content-section">
+        <div class="section-header">
+          <h2>Products</h2>
+          <button class="btn btn-primary" id="addProductBtn">
+            <i class="fas fa-plus"></i>
+            Add Product
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="products-table">
+              <!-- Products will be loaded here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Orders Section -->
+      <div id="orders-section" class="content-section">
+        <div class="section-header">
+          <h2>Orders</h2>
+          <button class="btn btn-danger" onclick="clearAllOrders()">
+            <i class="fas fa-trash"></i>
+            Clear All Orders
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Products</th>
+                <th>Customer</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-table">
+              <!-- Orders will be loaded here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="footer">
+        <p>© 2023 E-Commerce Admin Panel. All rights reserved.</p>
+        <p>Contact: <span id="admin-contact">Admin Name | admin@example.com | +1234567890</span></p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Add Product Modal -->
+  <div class="modal" id="addProductModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Product</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="productForm">
+        <div class="form-group">
+          <label for="productTitle">Product Title</label>
+          <input type="text" id="productTitle" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label for="productDescription">Description</label>
+          <textarea id="productDescription" class="form-control" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="productPrice">Price</label>
+          <input type="number" id="productPrice" class="form-control" step="0.01" required>
+        </div>
+        <div class="form-group">
+          <label for="productImage">Product Image</label>
+          <input type="file" id="productImage" class="form-control" accept="image/*" required>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="addProduct()">
+          <i class="fas fa-save"></i>
+          Save Product
+        </button>
+      </form>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <script src="owner.js"></script>
+</body>
+</html>

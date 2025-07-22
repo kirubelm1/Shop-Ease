@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function SuperAdminDashboard() {
+            const [analytics, setAnalytics] = useState(null);
+            const [orders, setOrders] = useState([]);
+            const [products, setProducts] = useState([]);
+            const [contacts, setContacts] = useState([]);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                fetchData();
+            }, []);
+
+            useEffect(() => {
+                if (analytics?.monthlyRevenue && document.getElementById('revenueChart')) {
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+                    const ctx = document.getElementById('revenueChart').getContext('2d');
+                    chartRef.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: analytics.monthlyRevenue.map(item => 
+                                new Date(item._id.year, item._id.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' })
+                            ).reverse(),
+                            datasets: [{
+                                label: 'Monthly Revenue',
+                                data: analytics.monthlyRevenue.map(item => item.total).reverse(),
+                                borderColor: '#3b82f6',
+                                tension: 0.4,
+                                fill: true,
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+                return () => {
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+                };
+            }, [analytics]);
+
+            const fetchData = async () => {
+                try {
+                    const [analyticsRes, ordersRes, productsRes, contactsRes] = await Promise.all([
+                        axios.get('http://localhost:3000/api/superadmin/analytics'),
+                        axios.get('http://localhost:3000/api/superadmin/orders'),
+                        axios.get('http://localhost:3000/api/superadmin/products'),
+                        axios.get('http://localhost:3000/api/superadmin/contacts')
+                    ]);
+                    setAnalytics(analyticsRes.data);
+                    setOrders(ordersRes.data);
+                    setProducts(productsRes.data);
+                    setContacts(contactsRes.data);
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    alert('Failed to fetch data. Please check the server connection.');
+                }
+            };
+
+            const handleDeleteOrder = async (id) => {
+                try {
+                    await axios.delete(`http://localhost:3000/api/orders/${id}`);
+                    setOrders(orders.filter(order => order._id !== id));
+                    alert('Order deleted successfully');
+                } catch (error) {
+                    console.error('Error deleting order:', error);
+                    alert('Failed to delete order');
+                }
+            };
+
+            const handleDeleteProduct = async (id, public_id) => {
+                try {
+                    await axios.delete(`http://localhost:3000/api/products/${id}`, {
+                        data: { public_id }
+                    });
+                    setProducts(products.filter(product => product._id !== id));
+                    alert('Product deleted successfully');
+                } catch (error) {
+                    console.error('Error deleting product:', error);
+                    alert('Failed to delete product');
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    <nav className="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow">
+                        <div className="container mx-auto">
+                            <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
+                        </div>
+                    </nav>
+
+                    <div className="container mx-auto p-6">
+                        <div className="flex border-b border-gray-200 mb-6">
+                            {['dashboard', 'orders', 'products', 'contacts'].map(tab => (
+                                <button
+                                    key={tab}
+                                    className={`px-4 py-2 font-medium ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setActiveTab(tab)}
+                                >
+                                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {activeTab === 'dashboard' && analytics && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-200">
+                                    <h3 className="text-lg font-semibold text-gray-700">Total Products</h3>
+                                    <p className="text-3xl font-bold text-blue-600">{analytics.stats.totalProducts}</p>
+                                </div>
+                                <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-200">
+                                    <h3 className="text-lg font-semibold text-gray-700">Total Orders</h3>
+                                    <p className="text-3xl font-bold text-blue-600">{analytics.stats.totalOrders}</p>
+                                </div>
+                                <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-200">
+                                    <h3 className="text-lg font-semibold text-gray-700">Pending Orders</h3>
+                                    <p className="text-3xl font-bold text-blue-600">{analytics.stats.pendingOrders}</p>
+                                </div>
+                                <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-200">
+                                    <h3 className="text-lg font-semibold text-gray-700">Total Revenue</h3>
+                                    <p className="text-3xl font-bold text-blue-600">${analytics.stats.totalRevenue.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'dashboard' && (
+                            <div className="bg-white p-6 rounded-lg shadow mb-6">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Revenue Trend</h3>
+                                <canvas id="revenueChart" className="w-full h-64"></canvas>
+                            </div>
+                        )}
+
+                        {activeTab === 'orders' && (
+                            <div className="bg-white p-6 rounded-lg shadow">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Recent Orders</h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="p-3 font-semibold">Date</th>
+                                                <th className="p-3 font-semibold">Products</th>
+                                                <th className="p-3 font-semibold">Total</th>
+                                                <th className="p-3 font-semibold">Status</th>
+                                                <th className="p-3 font-semibold">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {orders.length > 0 ? orders.map(order => (
+                                                <tr key={order._id} className="border-b hover:bg-gray-50">
+                                                    <td className="p-3">{new Date(order.createdAt).toLocaleDateString()}</td>
+                                                    <td className="p-3">{order.products.map(p => p.title).join(', ')}</td>
+                                                    <td className="p-3">${order.products.reduce((sum, p) => sum + p.price, 0).toFixed(2)}</td>
+                                                    <td className="p-3">{order.state}</td>
+                                                    <td className="p-3">
+                                                        <button
+                                                            onClick={() => handleDeleteOrder(order._id)}
+                                                            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition duration-200"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td colSpan="5" className="p-3 text-center text-gray-500">No orders available</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'products' && (
+                            <div className="bg-white p-6 rounded-lg shadow">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Products</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {products.length > 0 ? products.map(product => (
+                                        <div key={product._id} className="border rounded-lg p-4 hover:shadow-lg transition duration-200">
+                                            <img src={product.image} alt={product.title} className="w-full h-48 object-cover mb-2 rounded" />
+                                            <h4 className="font-semibold text-gray-700">{product.title}</h4>
+                                            <p className="text-gray-600">${product.price.toFixed(2)}</p>
+                                            <button
+                                                onClick={() => handleDeleteProduct(product._id, product.public_id)}
+                                                className="mt-2 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition duration-200"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    )) : (
+                                        <p className="text-gray-500 text-center col-span-3">No products available</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'contacts' && (
+                            <div className="bg-white p-6 rounded-lg shadow">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-4">Customer Contacts</h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="p-3 font-semibold">Date</th>
+                                                <th className="p-3 font-semibold">Name</th>
+                                                <th className="p-3 font-semibold">Email</th>
+                                                <th className="p-3 font-semibold">Message</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {contacts.length > 0 ? contacts.map(contact => (
+                                                <tr key={contact._id} className="border-b hover:bg-gray-50">
+                                                    <td className="p-3">{new Date(contact.createdAt).toLocaleDateString()}</td>
+                                                    <td className="p-3">{contact.name || 'N/A'}</td>
+                                                    <td className="p-3">{contact.email || 'N/A'}</td>
+                                                    <td className="p-3">{contact.message || 'N/A'}</td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td colSpan="4" className="p-3 text-center text-gray-500">No contacts available</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SuperAdminDashboard />);
+    </script>
+</body>
+</html>
