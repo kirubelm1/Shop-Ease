@@ -7,10 +7,15 @@ const adminContact = document.getElementById('admin-contact');
 // Charts
 let salesChart, orderStatusChart;
 
+// ETB Currency Format
+function formatETB(amount) {
+  return `ETB ${Number(amount).toLocaleString('en-ET', { minimumFractionDigits: 2 })}`;
+}
+
 // Initialize the dashboard
 document.addEventListener('DOMContentLoaded', () => {
   // Set admin contact info
-  adminContact.textContent = "John Doe | john@ecommerce.com | +1 (555) 123-4567";
+  adminContact.textContent = "Kirubel Mesfin | kirusu1.bm@gmail.com | +251911604204";
   
   // Load all data
   loadDashboardData();
@@ -47,8 +52,8 @@ function updateStats() {
   const totalRevenue = orders.reduce((sum, order) => {
     return sum + order.products.reduce((orderSum, product) => orderSum + product.price, 0);
   }, 0);
-  
-  document.getElementById('total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
+
+  document.getElementById('total-revenue').textContent = formatETB(totalRevenue);
   document.getElementById('total-orders').textContent = orders.length;
   
   // Calculate pending orders
@@ -79,7 +84,6 @@ function initCharts() {
       const orderDate = new Date(order._id).toISOString().split('T')[0];
       return orderDate === date;
     });
-    
     return dayOrders.reduce((sum, order) => {
       return sum + order.products.reduce((orderSum, product) => orderSum + product.price, 0);
     }, 0);
@@ -92,13 +96,15 @@ function initCharts() {
     data: {
       labels: last7Days,
       datasets: [{
-        label: 'Daily Sales',
+        label: 'Daily Sales (ETB)',
         data: salesData,
-        borderColor: '#4361ee',
-        backgroundColor: 'rgba(67, 97, 238, 0.1)',
-        borderWidth: 2,
+        borderColor: '#0f4c81',
+        backgroundColor: 'rgba(15, 76, 129, 0.10)',
+        borderWidth: 3,
         tension: 0.4,
-        fill: true
+        fill: true,
+        pointBackgroundColor: "#ffe156",
+        pointRadius: 6
       }]
     },
     options: {
@@ -106,11 +112,23 @@ function initCharts() {
       plugins: {
         legend: {
           position: 'top',
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `ETB ${context.parsed.y.toLocaleString('en-ET', { minimumFractionDigits: 2 })}`;
+            }
+          }
         }
       },
       scales: {
         y: {
-          beginAtZero: true
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return `ETB ${value.toLocaleString('en-ET', { minimumFractionDigits: 2 })}`;
+            }
+          }
         }
       }
     }
@@ -129,12 +147,12 @@ function initCharts() {
     datasets: [{
       data: Object.values(statusCounts),
       backgroundColor: [
-        'rgba(67, 97, 238, 0.7)',
-        'rgba(40, 167, 69, 0.7)',
-        'rgba(255, 193, 7, 0.7)',
-        'rgba(220, 53, 69, 0.7)'
+        'rgba(15, 76, 129, 0.75)',
+        'rgba(16,185,129,0.80)',
+        'rgba(245,158,66,0.80)',
+        'rgba(239,68,68,0.80)'
       ],
-      borderWidth: 1
+      borderWidth: 2
     }]
   };
   
@@ -170,10 +188,16 @@ async function loadProducts() {
       products.forEach(product => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><img src="${product.image}" alt="${product.title}" width="50"></td>
+          <td><img src="${product.image}" alt="${product.title}" width="54"></td>
           <td>${product.title}</td>
           <td>${product.description.substring(0, 50)}${product.description.length > 50 ? '...' : ''}</td>
-          <td>$${product.price.toFixed(2)}</td>
+          <td>${formatETB(product.price)}</td>
+          <td>
+            <input type="checkbox" class="sold-out-checkbox" 
+                   ${product.soldOut ? 'checked' : ''} 
+                   onchange="toggleSoldOut('${product._id}', this.checked)">
+            <span class="sold-out-label">${product.soldOut ? 'Sold Out' : 'Available'}</span>
+          </td>
           <td>
             <button class="action-btn delete" onclick="deleteProduct('${product._id}', '${product.public_id}')">
               <i class="fas fa-trash"></i>
@@ -183,13 +207,35 @@ async function loadProducts() {
         productsTable.appendChild(tr);
       });
     } else {
-      productsTable.innerHTML = `<tr><td colspan="5" style="color: red; text-align: center;">Error loading products: ${products.message || 'Unknown error'}</td></tr>`;
+      productsTable.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${products.message || 'Unknown error'}</td></tr>`;
     }
   } catch (error) {
     console.error('Error loading products:', error);
     document.getElementById('products-table').innerHTML = `
-      <tr><td colspan="5" style="color: red; text-align: center;">Error loading products: ${error.message}</td></tr>
+      <tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${error.message}</td></tr>
     `;
+  }
+}
+
+// Toggle sold-out status
+async function toggleSoldOut(id, soldOut) {
+  try {
+    const response = await fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ soldOut })
+    });
+    
+    if (response.ok) {
+      await loadProducts();
+      updateStats();
+    } else {
+      const result = await response.json();
+      alert(result.message || 'Failed to update sold-out status');
+    }
+  } catch (error) {
+    console.error('Error updating sold-out status:', error);
+    alert('Error updating sold-out status: ' + error.message);
   }
 }
 
@@ -199,6 +245,7 @@ async function addProduct() {
   const description = document.getElementById('productDescription').value;
   const price = document.getElementById('productPrice').value;
   const imageFile = document.getElementById('productImage').files[0];
+  const soldOut = document.getElementById('productSoldOut').checked;
   
   if (!title || !description || !price || !imageFile) {
     alert('Please fill all fields and select an image');
@@ -211,6 +258,7 @@ async function addProduct() {
     formData.append('description', description);
     formData.append('price', price);
     formData.append('image', imageFile);
+    formData.append('soldOut', soldOut);
     
     const response = await fetch('/api/products', {
       method: 'POST',
@@ -277,7 +325,7 @@ async function loadOrders() {
           <td>${order._id.substring(0, 8)}...</td>
           <td>
             <ul style="list-style: none; padding: 0; margin: 0;">
-              ${order.products.map(p => `<li>${p.title} ($${p.price.toFixed(2)})</li>`).join('')}
+              ${order.products.map(p => `<li>${p.title} (${formatETB(p.price)})</li>`).join('')}
             </ul>
           </td>
           <td>
