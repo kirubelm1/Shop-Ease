@@ -70,10 +70,13 @@ function displayProducts(productsToDisplay) {
       <div class="product-info">
         <h3 class="product-title">${product.title}</h3>
         <div class="product-price">ETB ${product.price.toFixed(2)}</div>
+        ${product.soldOut ? '<div class="sold-out">Sold Out</div>' : ''}
         <div class="product-rating">
           ${generateStarRating(product.rating || 4)}
         </div>
-        <button class="add-to-cart" onclick="event.stopPropagation(); addToCart('${product._id || product.title}', '${product.title}', ${product.price}, '${product.image}')">
+        <button class="add-to-cart" 
+                ${product.soldOut ? 'disabled' : ''} 
+                onclick="event.stopPropagation(); addToCart('${product._id || product.title}', '${product.title}', ${product.price}, '${product.image}', ${product.soldOut})">
           <i class="fas fa-shopping-cart"></i> Add to Cart
         </button>
       </div>
@@ -122,8 +125,11 @@ function showProductDetails(product) {
     </div>
     <h3 class="product-details-title">${product.title}</h3>
     <div class="product-details-price">ETB ${product.price.toFixed(2)}</div>
+    ${product.soldOut ? '<div class="sold-out">Sold Out</div>' : ''}
     <div class="product-details-description">${product.description || 'No description available'}</div>
-    <button class="add-to-cart" onclick="addToCart('${product._id || product.title}', '${product.title}', ${product.price}, '${product.image}')">
+    <button class="add-to-cart" 
+            ${product.soldOut ? 'disabled' : ''} 
+            onclick="addToCart('${product._id || product.title}', '${product.title}', ${product.price}, '${product.image}', ${product.soldOut})">
       <i class="fas fa-shopping-cart"></i> Add to Cart
     </button>
   `;
@@ -148,7 +154,12 @@ function closeModals(e) {
 }
 
 // Add item to cart
-function addToCart(id, title, price, image) {
+function addToCart(id, title, price, image, soldOut) {
+  if (soldOut) {
+    alert('This product is sold out and cannot be added to the cart.');
+    return;
+  }
+  
   const existingItem = cart.find(item => item.id === id);
   
   if (existingItem) {
@@ -290,6 +301,7 @@ async function placeOrder() {
   try {
     const order = { 
       products: cart.map(item => ({
+        id: item.id, // Include product ID for sold-out check
         title: item.title,
         price: item.price,
         quantity: item.quantity
@@ -339,10 +351,14 @@ async function placeOrder() {
       document.getElementById('city').value = '';
       document.getElementById('location').value = '';
     } else {
-      throw new Error(result.message || 'Failed to place order');
+      if (result.soldOutProducts) {
+        alert(`Cannot place order: The following products are sold out: ${result.soldOutProducts.join(', ')}`);
+      } else {
+        throw new Error(result.message || 'Failed to place order');
+      }
     }
   } catch (error) {
     console.error('Error placing order:', error);
-    alert('Failed to place order. Please try again.');
+    alert('Failed to place order: ' + error.message);
   }
 }
