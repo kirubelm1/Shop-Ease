@@ -42,10 +42,11 @@ const productSchema = new mongoose.Schema({
   price: Number,
   image: String,
   public_id: String,
+  soldOut: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 const orderSchema = new mongoose.Schema({
-  products: [{ title: String, price: Number }],
+  products: [{ id: String, title: String, price: Number, quantity: Number }],
   phone: String,
   city: String,
   location: String,
@@ -69,17 +70,31 @@ const Contact = mongoose.model('Contact', contactSchema);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname))); // Serve HTML, CSS, JS
+app.use(express.static(path.join(__dirname), {
+  setHeaders: (res, path) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+}));
 
-// Home route
+// Routes for HTML pages
 app.get('/', (req, res) => {
+  res.redirect('/customer.html');
+});
+
+app.get('/owner.html', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'owner.html'));
+});
+
+app.get('/customer.html', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'customer.html'));
 });
 
 // ========== PRODUCT ROUTES ==========
 app.post('/api/products', upload.single('image'), async (req, res) => {
   try {
-    const { title, description, price } = req.body;
+    const { title, description, price, soldOut } = req.body;
     if (!title || !description || !price || !req.file) {
       return res.status(400).json({ message: 'All fields and image are required' });
     }
@@ -89,7 +104,8 @@ app.post('/api/products', upload.single('image'), async (req, res) => {
       description,
       price: parseFloat(price),
       image: req.file.path,
-      public_id: req.file.filename
+      public_id: req.file.filename,
+      soldOut: soldOut === 'true'
     });
 
     await product.save();
@@ -106,6 +122,18 @@ app.get('/api/products', async (req, res) => {
     res.json(products);
   } catch (error) {
     console.error('Error fetching products:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { soldOut } = req.body;
+    await Product.findByIdAndUpdate(id, { soldOut });
+    res.json({ message: 'Product status updated successfully' });
+  } catch (error) {
+    console.error('Error updating product status:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
@@ -131,6 +159,20 @@ app.post('/api/orders', async (req, res) => {
     const { products, phone, city, location } = req.body;
     if (!products || !phone || !city || !location) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const productIds = products.map(p => p.id).filter(id => id);
+    if (productIds.length > 0) {
+      const soldOutProducts = await Product.find({
+        _id: { $in: productIds },
+        soldOut: true
+      });
+      if (soldOutProducts.length > 0) {
+        return res.status(400).json({
+          message: 'Cannot place order: some products are sold out',
+          soldOutProducts: soldOutProducts.map(p => p.title)
+        });
+      }
     }
 
     const order = new Order({ products, phone, city, location });
@@ -181,6 +223,33 @@ app.delete('/api/orders', async (req, res) => {
     res.json({ message: 'All orders cleared successfully' });
   } catch (error) {
     console.error('Error clearing orders:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// ========== CONTACT ROUTES ==========
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, phone, message } = req.body;
+    if (!name || !email || !phone || !message) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const contact = new Contact({ name, email, phone, message });
+    await contact.save();
+    res.status(201).json({ message: 'Contact message sent successfully' });
+  } catch (error) {
+    console.error('Error saving contact message:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+app.get('/api/superadmin/contacts', async (req, res) => {
+  try {
+    const contacts = await Contact.find().sort({ createdAt: -1 });
+    res.json(contacts);
+  } catch (error) {
+    console.error('Error fetching contacts:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
@@ -242,7 +311,7 @@ app.get('/api/superadmin/analytics', async (req, res) => {
   }
 });
 
-// ========== SUPERADMIN VIEWS ==========
+// ========== SUPERADMIN ROUTES ==========
 app.get('/api/superadmin/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
