@@ -1,96 +1,341 @@
-// DOM Elements
 const addProductBtn = document.getElementById('addProductBtn');
 const addProductModal = document.getElementById('addProductModal');
-const modalClose = document.querySelector('.modal-close');
+const productModalClose = document.querySelector('#addProductModal .modal-close');
+const authModal = document.getElementById('authModal');
+const authModalClose = document.getElementById('authModalClose');
+const authForm = document.getElementById('authForm');
+const authModalTitle = document.getElementById('authModalTitle');
+const submitBtn = document.getElementById('submitBtn');
+const toggleLink = document.getElementById('toggleLink');
+const toggleForm = document.getElementById('toggleForm');
+const errorMessage = document.getElementById('errorMessage');
 const adminContact = document.getElementById('admin-contact');
-
-// Charts
+const dashboard = document.getElementById('dashboard');
+const usernameDisplay = document.getElementById('usernameDisplay');
 let salesChart, orderStatusChart;
+let isSignup = false;
+const loginAttempts = new Map(); // Track login attempts per username
+const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+let isSiteLocked = false;
+let requestTimestamps = [];
 
-// ETB Currency Format
+// Function to lock the site
+function lockSite(reason) {
+  if (isSiteLocked) return;
+  isSiteLocked = true;
+  const lockoutEndTime = Date.now() + LOCKOUT_DURATION;
+  localStorage.setItem('lockoutState', JSON.stringify({ isLocked: true, reason, endTime: lockoutEndTime }));
+  const lockMessage = document.createElement('div');
+  lockMessage.id = 'lockMessage';
+  lockMessage.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.9); color: #dc3545; display: flex;
+    align-items: center; justify-content: center; z-index: 9999;
+    font-size: 24px; text-align: center; padding: 20px;
+  `;
+  lockMessage.textContent = `Site temporarily locked due to ${reason}. Please try again in 5 minutes.`;
+  document.body.appendChild(lockMessage);
+  document.body.style.pointerEvents = 'none'; // Disable all interactions
+  logSuspiciousActivity(reason);
+  setTimeout(unlockSite, LOCKOUT_DURATION);
+}
+
+// Function to unlock the site
+function unlockSite() {
+  isSiteLocked = false;
+  localStorage.removeItem('lockoutState');
+  document.body.style.pointerEvents = 'auto';
+  const lockMessage = document.getElementById('lockMessage');
+  if (lockMessage) lockMessage.remove();
+}
+
+// Check lockout state on page load
+function checkLockoutState() {
+  const lockoutState = localStorage.getItem('lockoutState');
+  if (lockoutState) {
+    const { isLocked, reason, endTime } = JSON.parse(lockoutState);
+    if (isLocked && Date.now() < endTime) {
+      isSiteLocked = true;
+      const lockMessage = document.createElement('div');
+      lockMessage.id = 'lockMessage';
+      lockMessage.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.9); color: #dc3545; display: flex;
+        align-items: center; justify-content: center; z-index: 9999;
+        font-size: 24px; text-align: center; padding: 20px;
+      `;
+      lockMessage.textContent = `Site temporarily locked due to ${reason}. Please try again in 5 minutes.`;
+      document.body.appendChild(lockMessage);
+      document.body.style.pointerEvents = 'none';
+      setTimeout(unlockSite, endTime - Date.now());
+      return true;
+    } else {
+      localStorage.removeItem('lockoutState'); // Clear expired lockout
+    }
+  }
+  return false;
+}
+
+// Log suspicious activity to the server
+async function logSuspiciousActivity(reason) {
+  try {
+    await fetch('/api/security/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, timestamp: new Date().toISOString() })
+    });
+  } catch (error) {
+    console.error('Error logging suspicious activity:', error);
+  }
+}
+
+// Check for suspicious request frequency
+function checkRequestFrequency() {
+  const now = Date.now();
+  requestTimestamps = requestTimestamps.filter(ts => now - ts < 10000); // 10-second window
+  requestTimestamps.push(now);
+  if (requestTimestamps.length > 50) { // More than 50 requests in 10 seconds
+    lockSite('suspicious request frequency');
+    return true;
+  }
+  return false;
+}
+
+// Sanitize input to prevent XSS
+function sanitizeInput(input) {
+  const div = document.createElement('div');
+  div.textContent = input;
+  return div.innerHTML;
+}
+
 function formatETB(amount) {
   return `ETB ${Number(amount).toLocaleString('en-ET', { minimumFractionDigits: 2 })}`;
 }
 
-// Initialize the dashboard
-document.addEventListener('DOMContentLoaded', () => {
-  // Set admin contact info
+function checkAuth() {
+  if (isSiteLocked) return false;
+  const token = localStorage.getItem('token');
+  if (!token) {
+    authModal.classList.add('active');
+    dashboard.style.display = 'none';
+    return false;
+  }
+  return token;
+}
+
+async function verifyToken(token) {
+  if (isSiteLocked) return false;
+  if (checkRequestFrequency()) return false;
+  try {
+    const response = await fetch('/api/auth/verify', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      if (error.message.includes('Invalid or expired token')) {
+        logSuspiciousActivity('invalid token attempt');
+        lockSite('invalid token detected');
+      }
+      throw new Error('Token verification failed');
+    }
+    const result = await response.json();
+    return result.username;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    localStorage.removeItem('token');
+    authModal.classList.add('active');
+    dashboard.style.display = 'none';
+    return false;
+  }
+}
+
+async function checkSignupStatus() {
+  if (isSiteLocked) return;
+  try {
+    const response = await fetch('/api/auth/check-signup');
+    const result = await response.json();
+    toggleForm.style.display = result.signupAllowed ? 'block' : 'none';
+  } catch (error) {
+    console.error('Error checking signup status:', error);
+    toggleForm.style.display = 'none';
+  }
+}
+
+function logout() {
+  if (isSiteLocked) return;
+  localStorage.removeItem('token');
+  authModal.classList.add('active');
+  dashboard.style.display = 'none';
+  authForm.reset();
+  errorMessage.style.display = 'none';
+  isSignup = false;
+  authModalTitle.textContent = 'Login';
+  submitBtn.textContent = 'Login';
+  toggleForm.firstChild.textContent = "Don't have an account? ";
+  toggleLink.textContent = 'Sign Up';
+  checkSignupStatus();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (checkLockoutState()) return; // Check lockout state first
   adminContact.textContent = "Kirubel Mesfin | kirusu1.bm@gmail.com | +251911604204";
-  
-  // Load all data
-  loadDashboardData();
-  
-  // Modal event listeners
+  checkSignupStatus();
+
+  const token = checkAuth();
+  if (token) {
+    const username = await verifyToken(token);
+    if (username) {
+      usernameDisplay.textContent = sanitizeInput(username);
+      dashboard.style.display = 'flex';
+      authModal.classList.remove('active');
+      loadDashboardData();
+    }
+  }
+
   addProductBtn.addEventListener('click', () => {
+    if (isSiteLocked) return;
     addProductModal.classList.add('active');
   });
-  
-  modalClose.addEventListener('click', () => {
+
+  productModalClose.addEventListener('click', () => {
+    if (isSiteLocked) return;
     addProductModal.classList.remove('active');
   });
-  
-  // Close modal when clicking outside
+
+  authModalClose.addEventListener('click', () => {
+    if (isSiteLocked) return;
+    if (!checkAuth()) {
+      authModal.classList.add('active');
+    }
+  });
+
   window.addEventListener('click', (e) => {
+    if (isSiteLocked) return;
     if (e.target === addProductModal) {
       addProductModal.classList.remove('active');
+    }
+    if (e.target === authModal && !checkAuth()) {
+      authModal.classList.add('active');
+    }
+  });
+
+  toggleLink.addEventListener('click', (e) => {
+    if (isSiteLocked) return;
+    e.preventDefault();
+    isSignup = !isSignup;
+    authModalTitle.textContent = isSignup ? 'Sign Up' : 'Login';
+    submitBtn.textContent = isSignup ? 'Sign Up' : 'Login';
+    toggleForm.firstChild.textContent = isSignup ? 'Already have an account? ' : "Don't have an account? ";
+    toggleLink.textContent = isSignup ? 'Login' : 'Sign Up';
+    errorMessage.style.display = 'none';
+  });
+
+  authForm.addEventListener('submit', async (e) => {
+    if (isSiteLocked) return;
+    if (checkRequestFrequency()) return;
+    e.preventDefault();
+    errorMessage.style.display = 'none';
+    const username = sanitizeInput(document.getElementById('username').value);
+    const password = document.getElementById('password').value;
+
+    const attempts = loginAttempts.get(username) || { count: 0, lastAttempt: 0 };
+    const now = Date.now();
+    if (attempts.count >= 2 && now - attempts.lastAttempt < LOCKOUT_DURATION) {
+      lockSite(`multiple failed login attempts for ${username}`);
+      errorMessage.textContent = 'Too many failed attempts. Site locked for 5 minutes.';
+      errorMessage.style.display = 'block';
+      return;
+    }
+
+    try {
+      const endpoint = isSignup ? '/api/register' : '/api/login';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        loginAttempts.delete(username); // Reset attempts on success
+        localStorage.setItem('token', result.token);
+        usernameDisplay.textContent = sanitizeInput(username);
+        authModal.classList.remove('active');
+        dashboard.style.display = 'flex';
+        authForm.reset();
+        checkSignupStatus();
+        await loadDashboardData();
+      } else {
+        attempts.count = (attempts.count || 0) + 1;
+        attempts.lastAttempt = now;
+        loginAttempts.set(username, attempts);
+        if (attempts.count >= 2) {
+          lockSite(`multiple failed login attempts for ${username}`);
+          errorMessage.textContent = 'Too many failed attempts. Site locked for 5 minutes.';
+        } else {
+          errorMessage.textContent = result.message || 'An error occurred';
+        }
+        errorMessage.style.display = 'block';
+        logSuspiciousActivity(`Failed login attempt for ${username}`);
+      }
+    } catch (error) {
+      console.error('Error during authentication:', error);
+      attempts.count = (attempts.count || 0) + 1;
+      attempts.lastAttempt = now;
+      loginAttempts.set(username, attempts);
+      if (attempts.count >= 2) {
+        lockSite(`multiple failed login attempts for ${username}`);
+        errorMessage.textContent = 'Too many failed attempts. Site locked for 5 minutes.';
+      } else {
+        errorMessage.textContent = 'Error: ' + error.message;
+      }
+      errorMessage.style.display = 'block';
+      logSuspiciousActivity(`Authentication error for ${username}: ${error.message}`);
     }
   });
 });
 
-// Load all dashboard data
 async function loadDashboardData() {
+  if (isSiteLocked) return;
   await loadProducts();
   await loadOrders();
   updateStats();
   initCharts();
 }
 
-// Update stats cards
 function updateStats() {
-  // Calculate total revenue
+  if (isSiteLocked) return;
   const orders = JSON.parse(localStorage.getItem('orders')) || [];
   const totalRevenue = orders.reduce((sum, order) => {
-    return sum + order.products.reduce((orderSum, product) => orderSum + product.price, 0);
+    return sum + order.products.reduce((orderSum, product) => orderSum + product.price * (product.quantity || 1), 0);
   }, 0);
-
   document.getElementById('total-revenue').textContent = formatETB(totalRevenue);
   document.getElementById('total-orders').textContent = orders.length;
-  
-  // Calculate pending orders
   const pendingOrders = orders.filter(order => order.state === 'Pending').length;
   document.getElementById('pending-orders').textContent = pendingOrders;
-  
-  // Get total products
   const products = JSON.parse(localStorage.getItem('products')) || [];
   document.getElementById('total-products').textContent = products.length;
 }
 
-// Initialize charts
 function initCharts() {
+  if (isSiteLocked) return;
   const orders = JSON.parse(localStorage.getItem('orders')) || [];
-  
-  // Sales Chart (Line Chart)
   const salesCtx = document.getElementById('salesChart').getContext('2d');
-  
-  // Group orders by date for the last 7 days
   const last7Days = [...Array(7)].map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
     return d.toISOString().split('T')[0];
   }).reverse();
-  
   const salesData = last7Days.map(date => {
     const dayOrders = orders.filter(order => {
-      const orderDate = new Date(order._id).toISOString().split('T')[0];
+      const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
       return orderDate === date;
     });
     return dayOrders.reduce((sum, order) => {
-      return sum + order.products.reduce((orderSum, product) => orderSum + product.price, 0);
+      return sum + order.products.reduce((orderSum, product) => orderSum + product.price * (product.quantity || 1), 0);
     }, 0);
   });
-  
   if (salesChart) salesChart.destroy();
-  
   salesChart = new Chart(salesCtx, {
     type: 'line',
     data: {
@@ -103,16 +348,14 @@ function initCharts() {
         borderWidth: 3,
         tension: 0.4,
         fill: true,
-        pointBackgroundColor: "#ffe156",
+        pointBackgroundColor: '#ffe156',
         pointRadius: 6
       }]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          position: 'top',
-        },
+        legend: { position: 'top' },
         tooltip: {
           callbacks: {
             label: function(context) {
@@ -133,15 +376,11 @@ function initCharts() {
       }
     }
   });
-  
-  // Order Status Chart (Doughnut Chart)
   const orderStatusCtx = document.getElementById('orderStatusChart').getContext('2d');
-  
   const statusCounts = orders.reduce((acc, order) => {
     acc[order.state] = (acc[order.state] || 0) + 1;
     return acc;
   }, {});
-  
   const statusData = {
     labels: Object.keys(statusCounts),
     datasets: [{
@@ -155,51 +394,50 @@ function initCharts() {
       borderWidth: 2
     }]
   };
-  
   if (orderStatusChart) orderStatusChart.destroy();
-  
   orderStatusChart = new Chart(orderStatusCtx, {
     type: 'doughnut',
     data: statusData,
     options: {
       responsive: true,
-      plugins: {
-        legend: {
-          position: 'bottom',
-        }
-      }
+      plugins: { legend: { position: 'bottom' } }
     }
   });
 }
 
-// Load products
 async function loadProducts() {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   try {
-    const response = await fetch('/api/products');
+    const token = checkAuth();
+    if (!token) return;
+    const response = await fetch('/api/products', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch products');
+    }
     const products = await response.json();
-    
-    // Store products in localStorage for quick access
     localStorage.setItem('products', JSON.stringify(products));
-    
     const productsTable = document.getElementById('products-table');
     productsTable.innerHTML = '';
-    
     if (Array.isArray(products)) {
       products.forEach(product => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><img src="${product.image}" alt="${product.title}" width="54"></td>
-          <td>${product.title}</td>
-          <td>${product.description.substring(0, 50)}${product.description.length > 50 ? '...' : ''}</td>
+          <td><img src="${sanitizeInput(product.image)}" alt="${sanitizeInput(product.title)}" width="54"></td>
+          <td>${sanitizeInput(product.title)}</td>
+          <td>${sanitizeInput(product.description.substring(0, 50))}${product.description.length > 50 ? '...' : ''}</td>
           <td>${formatETB(product.price)}</td>
           <td>
             <input type="checkbox" class="sold-out-checkbox" 
                    ${product.soldOut ? 'checked' : ''} 
-                   onchange="toggleSoldOut('${product._id}', this.checked)">
+                   onchange="toggleSoldOut('${sanitizeInput(product._id)}', this.checked)">
             <span class="sold-out-label">${product.soldOut ? 'Sold Out' : 'Available'}</span>
           </td>
           <td>
-            <button class="action-btn delete" onclick="deleteProduct('${product._id}', '${product.public_id}')">
+            <button class="action-btn delete" onclick="deleteProduct('${sanitizeInput(product._id)}', '${sanitizeInput(product.public_id)}')">
               <i class="fas fa-trash"></i>
             </button>
           </td>
@@ -207,51 +445,65 @@ async function loadProducts() {
         productsTable.appendChild(tr);
       });
     } else {
-      productsTable.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${products.message || 'Unknown error'}</td></tr>`;
+      productsTable.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${sanitizeInput(products.message || 'Unknown error')}</td></tr>`;
     }
   } catch (error) {
     console.error('Error loading products:', error);
     document.getElementById('products-table').innerHTML = `
-      <tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${error.message}</td></tr>
+      <tr><td colspan="6" style="color: red; text-align: center;">Error loading products: ${sanitizeInput(error.message)}</td></tr>
     `;
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized access attempt to products');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Toggle sold-out status
 async function toggleSoldOut(id, soldOut) {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   try {
+    const token = checkAuth();
+    if (!token) return;
     const response = await fetch(`/api/products/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ soldOut })
     });
-    
     if (response.ok) {
       await loadProducts();
       updateStats();
     } else {
       const result = await response.json();
-      alert(result.message || 'Failed to update sold-out status');
+      alert(sanitizeInput(result.message || 'Failed to update sold-out status'));
     }
   } catch (error) {
     console.error('Error updating sold-out status:', error);
-    alert('Error updating sold-out status: ' + error.message);
+    alert(sanitizeInput('Error updating sold-out status: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to update product status');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Add product
 async function addProduct() {
-  const title = document.getElementById('productTitle').value;
-  const description = document.getElementById('productDescription').value;
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
+  const token = checkAuth();
+  if (!token) return;
+  const title = sanitizeInput(document.getElementById('productTitle').value);
+  const description = sanitizeInput(document.getElementById('productDescription').value);
   const price = document.getElementById('productPrice').value;
   const imageFile = document.getElementById('productImage').files[0];
   const soldOut = document.getElementById('productSoldOut').checked;
-  
   if (!title || !description || !price || !imageFile) {
     alert('Please fill all fields and select an image');
     return;
   }
-  
   try {
     const formData = new FormData();
     formData.append('title', title);
@@ -259,14 +511,12 @@ async function addProduct() {
     formData.append('price', price);
     formData.append('image', imageFile);
     formData.append('soldOut', soldOut);
-    
     const response = await fetch('/api/products', {
       method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
       body: formData
     });
-    
     const result = await response.json();
-    
     if (response.ok) {
       alert('Product added successfully');
       document.getElementById('productForm').reset();
@@ -274,67 +524,84 @@ async function addProduct() {
       await loadProducts();
       updateStats();
     } else {
-      alert(result.message || 'Failed to add product');
+      alert(sanitizeInput(result.message || 'Failed to add product'));
     }
   } catch (error) {
     console.error('Error adding product:', error);
-    alert('Error adding product: ' + error.message);
+    alert(sanitizeInput('Error adding product: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to add product');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Delete product
 async function deleteProduct(id, public_id) {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   if (!confirm('Are you sure you want to delete this product?')) return;
-  
   try {
+    const token = checkAuth();
+    if (!token) return;
     const response = await fetch(`/api/products/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ public_id })
     });
-    
     if (response.ok) {
       await loadProducts();
       updateStats();
     } else {
       const result = await response.json();
-      alert(result.message || 'Failed to delete product');
+      alert(sanitizeInput(result.message || 'Failed to delete product'));
     }
   } catch (error) {
     console.error('Error deleting product:', error);
-    alert('Error deleting product: ' + error.message);
+    alert(sanitizeInput('Error deleting product: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to delete product');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Load orders
 async function loadOrders() {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   try {
-    const response = await fetch('/api/orders');
+    const token = checkAuth();
+    if (!token) return;
+    const response = await fetch('/api/orders', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch orders');
+    }
     const orders = await response.json();
-    
-    // Store orders in localStorage for quick access
     localStorage.setItem('orders', JSON.stringify(orders));
-    
     const ordersTable = document.getElementById('orders-table');
     ordersTable.innerHTML = '';
-    
     if (Array.isArray(orders)) {
       orders.forEach(order => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${order._id.substring(0, 8)}...</td>
+          <td>${sanitizeInput(order._id.substring(0, 8))}...</td>
           <td>
             <ul style="list-style: none; padding: 0; margin: 0;">
-              ${order.products.map(p => `<li>${p.title} (${formatETB(p.price)})</li>`).join('')}
+              ${order.products.map(p => `<li>${sanitizeInput(p.title)} (${formatETB(p.price)} x ${p.quantity || 1})</li>`).join('')}
             </ul>
           </td>
           <td>
-            <div>Phone: ${order.phone}</div>
-            <div>City: ${order.city}</div>
+            <div>Phone: ${sanitizeInput(order.phone)}</div>
+            <div>City: ${sanitizeInput(order.city)}</div>
           </td>
-          <td>${order.location}</td>
+          <td>${sanitizeInput(order.location)}</td>
           <td>
-            <select class="form-control" onchange="updateOrderState('${order._id}', this.value)" style="padding: 0.25rem;">
+            <select class="form-control" onchange="updateOrderState('${sanitizeInput(order._id)}', this.value)" style="padding: 0.25rem;">
               <option value="Pending" ${order.state === 'Pending' ? 'selected' : ''}>Pending</option>
               <option value="Processing" ${order.state === 'Processing' ? 'selected' : ''}>Processing</option>
               <option value="Delivered" ${order.state === 'Delivered' ? 'selected' : ''}>Delivered</option>
@@ -342,7 +609,7 @@ async function loadOrders() {
             </select>
           </td>
           <td>
-            <button class="action-btn delete" onclick="deleteOrder('${order._id}')">
+            <button class="action-btn delete" onclick="deleteOrder('${sanitizeInput(order._id)}')">
               <i class="fas fa-trash"></i>
             </button>
           </td>
@@ -350,88 +617,107 @@ async function loadOrders() {
         ordersTable.appendChild(tr);
       });
     } else {
-      ordersTable.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">Error loading orders: ${orders.message || 'Unknown error'}</td></tr>`;
+      ordersTable.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">Error loading orders: ${sanitizeInput(orders.message || 'Unknown error')}</td></tr>`;
     }
   } catch (error) {
     console.error('Error loading orders:', error);
     document.getElementById('orders-table').innerHTML = `
-      <tr><td colspan="6" style="color: red; text-align: center;">Error loading orders: ${error.message}</td></tr>
+      <tr><td colspan="6" style="color: red; text-align: center;">Error loading orders: ${sanitizeInput(error.message)}</td></tr>
     `;
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized access attempt to orders');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Update order state
 async function updateOrderState(id, state) {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   try {
+    const token = checkAuth();
+    if (!token) return;
     const response = await fetch(`/api/orders/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ state })
     });
-    
     if (response.ok) {
       await loadOrders();
       updateStats();
       initCharts();
     } else {
       const result = await response.json();
-      alert(result.message || 'Failed to update order status');
+      alert(sanitizeInput(result.message || 'Failed to update order status'));
     }
   } catch (error) {
     console.error('Error updating order state:', error);
-    alert('Error updating order state: ' + error.message);
+    alert(sanitizeInput('Error updating order state: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to update order state');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Delete single order
 async function deleteOrder(id) {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   if (!confirm('Are you sure you want to delete this order?')) return;
-  
   try {
+    const token = checkAuth();
+    if (!token) return;
     const response = await fetch(`/api/orders/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
     });
-    
     if (response.ok) {
       await loadOrders();
       updateStats();
       initCharts();
     } else {
       const result = await response.json();
-      alert(result.message || 'Failed to delete order');
+      alert(sanitizeInput(result.message || 'Failed to delete order'));
     }
   } catch (error) {
     console.error('Error deleting order:', error);
-    alert('Error deleting order: ' + error.message);
+    alert(sanitizeInput('Error deleting order: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to delete order');
+      lockSite('unauthorized access detected');
+    }
   }
 }
 
-// Clear all orders
 async function clearAllOrders() {
+  if (isSiteLocked) return;
+  if (checkRequestFrequency()) return;
   if (!confirm('Are you sure you want to clear ALL orders? This cannot be undone!')) return;
-  
   try {
-    // First get all order IDs
-    const response = await fetch('/api/orders');
-    const orders = await response.json();
-    
-    if (!Array.isArray(orders)) {
-      throw new Error('Failed to fetch orders');
+    const token = checkAuth();
+    if (!token) return;
+    const response = await fetch('/api/orders', {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      await loadOrders();
+      updateStats();
+      initCharts();
+      alert('All orders have been cleared successfully');
+    } else {
+      const result = await response.json();
+      alert(sanitizeInput(result.message || 'Failed to clear orders'));
     }
-    
-    // Delete all orders one by one
-    for (const order of orders) {
-      await fetch(`/api/orders/${order._id}`, {
-        method: 'DELETE'
-      });
-    }
-    
-    await loadOrders();
-    updateStats();
-    initCharts();
-    alert('All orders have been cleared successfully');
   } catch (error) {
     console.error('Error clearing orders:', error);
-    alert('Error clearing orders: ' + error.message);
+    alert(sanitizeInput('Error clearing orders: ' + error.message));
+    if (error.message.includes('401') || error.message.includes('403')) {
+      logSuspiciousActivity('Unauthorized attempt to clear orders');
+      lockSite('unauthorized access detected');
+    }
   }
 }
