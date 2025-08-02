@@ -153,6 +153,21 @@
       border-radius: 50%;
     }
 
+    .btn-logout {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      background-color: var(--danger);
+      color: var(--white);
+      transition: background-color 0.3s;
+    }
+
+    .btn-logout:hover {
+      background-color: #c82333;
+    }
+
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -289,7 +304,8 @@
       padding: 20px;
       border-radius: 8px;
       width: 90%;
-      max-width: 500px;
+      max-width: 400px;
+      text-align: center;
     }
 
     .modal-header {
@@ -308,6 +324,7 @@
 
     .form-group {
       margin-bottom: 15px;
+      text-align: left;
     }
 
     .form-group label {
@@ -323,6 +340,7 @@
       cursor: pointer;
       font-weight: 500;
       transition: background-color 0.3s;
+      width: 100%;
     }
 
     .btn-primary {
@@ -359,10 +377,57 @@
       font-weight: 500;
       margin-left: 5px;
     }
+
+    .error-message {
+      color: var(--danger);
+      font-size: 14px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .toggle-form {
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    .toggle-form a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .toggle-form a:hover {
+      color: var(--secondary);
+    }
   </style>
 </head>
 <body>
-  <div class="dashboard">
+  <!-- Auth Modal -->
+  <div class="modal" id="authModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="authModalTitle">Login</h3>
+        <button class="modal-close" id="authModalClose">×</button>
+      </div>
+      <form id="authForm">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Login</button>
+        <p class="error-message" id="errorMessage"></p>
+        <p class="toggle-form" id="toggleForm">
+          Don't have an account? <a href="#" id="toggleLink">Sign Up</a>
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <div class="dashboard" id="dashboard" style="display: none;">
     <!-- Sidebar -->
     <div class="sidebar">
       <div style="width:100%">
@@ -393,8 +458,9 @@
           <input type="text" placeholder="Search...">
         </div>
         <div class="user-info">
-          <img src="data:image/png;base64,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" alt="User">
-          <span>Admin</span>
+          <img src="data:image/png;base64,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" alt="User">
+          <span id="usernameDisplay">Admin</span>
+          <button class="btn-logout" onclick="logout()">Logout</button>
         </div>
       </div>
       <!-- Stats Cards -->
