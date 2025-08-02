@@ -6,11 +6,14 @@ const dotenv = require('dotenv');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -36,6 +39,12 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 // Schemas
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
 const productSchema = new mongoose.Schema({
   title: String,
   description: String,
@@ -45,6 +54,7 @@ const productSchema = new mongoose.Schema({
   soldOut: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+
 const orderSchema = new mongoose.Schema({
   products: [{ id: String, title: String, price: Number, quantity: Number }],
   phone: String,
@@ -53,6 +63,7 @@ const orderSchema = new mongoose.Schema({
   state: { type: String, default: 'Pending' },
   createdAt: { type: Date, default: Date.now }
 });
+
 const contactSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -61,10 +72,17 @@ const contactSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const securityLogSchema = new mongoose.Schema({
+  reason: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
 // Models
+const User = mongoose.model('User', userSchema);
 const Product = mongoose.model('Product', productSchema);
 const Order = mongoose.model('Order', orderSchema);
 const Contact = mongoose.model('Contact', contactSchema);
+const SecurityLog = mongoose.model('SecurityLog', securityLogSchema);
 
 // Middleware
 app.use(cors());
@@ -76,12 +94,23 @@ app.use(express.static(path.join(__dirname), {
   }
 }));
 
-// Routes for HTML pages
-app.get('/', (req, res) => {
-  res.redirect('/customer.html');
-});
+// JWT Middleware
+const authenticateJWT = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: 'Invalid or expired token' });
+  }
+};
 
-app.get('/owner.html', (req, res) => {
+// Routes
+app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'owner.html'));
 });
@@ -91,14 +120,95 @@ app.get('/customer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'customer.html'));
 });
 
-// ========== PRODUCT ROUTES ==========
-app.post('/api/products', upload.single('image'), async (req, res) => {
+// Check if signup is allowed
+app.get('/api/auth/check-signup', async (req, res) => {
+  try {
+    const userCount = await User.countDocuments();
+    res.json({ signupAllowed: userCount === 0 });
+  } catch (error) {
+    console.error('Error checking signup status:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Verify token
+app.get('/api/auth/verify', authenticateJWT, async (req, res) => {
+  try {
+    res.json({ username: req.user.username });
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Log suspicious activity
+app.post('/api/security/log', async (req, res) => {
+  try {
+    const { reason, timestamp } = req.body;
+    if (!reason || !timestamp) {
+      return res.status(400).json({ message: 'Reason and timestamp are required' });
+    }
+    const log = new SecurityLog({ reason, timestamp });
+    await log.save();
+    res.status(201).json({ message: 'Activity logged successfully' });
+  } catch (error) {
+    console.error('Error logging activity:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// User Registration
+app.post('/api/register', async (req, res) => {
+  try {
+    const userCount = await User.countDocuments();
+    if (userCount > 0) {
+      return res.status(403).json({ message: 'Registration is closed. Only one admin account is allowed.' });
+    }
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Username already exists' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ username, password: hashedPassword });
+    await user.save();
+    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+    res.status(201).json({ message: 'User registered successfully', token });
+  } catch (error) {
+    console.error('Error registering user:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// User Login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+    const user = await User.findOne({ username });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } catch (error) {
+    console.error('Error logging in:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Product Routes
+app.post('/api/products', authenticateJWT, upload.single('image'), async (req, res) => {
   try {
     const { title, description, price, soldOut } = req.body;
     if (!title || !description || !price || !req.file) {
       return res.status(400).json({ message: 'All fields and image are required' });
     }
-
     const product = new Product({
       title,
       description,
@@ -107,7 +217,6 @@ app.post('/api/products', upload.single('image'), async (req, res) => {
       public_id: req.file.filename,
       soldOut: soldOut === 'true'
     });
-
     await product.save();
     res.status(201).json({ message: 'Product added successfully', product });
   } catch (error) {
@@ -126,7 +235,7 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const { soldOut } = req.body;
@@ -138,7 +247,7 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const { public_id } = req.body;
@@ -153,14 +262,13 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// ========== ORDER ROUTES ==========
+// Order Routes
 app.post('/api/orders', async (req, res) => {
   try {
     const { products, phone, city, location } = req.body;
     if (!products || !phone || !city || !location) {
       return res.status(400).json({ message: 'All fields are required' });
     }
-
     const productIds = products.map(p => p.id).filter(id => id);
     if (productIds.length > 0) {
       const soldOutProducts = await Product.find({
@@ -174,7 +282,6 @@ app.post('/api/orders', async (req, res) => {
         });
       }
     }
-
     const order = new Order({ products, phone, city, location });
     await order.save();
     res.status(201).json({ message: 'Order placed successfully' });
@@ -184,7 +291,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', authenticateJWT, async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
@@ -194,7 +301,7 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-app.put('/api/orders/:id', async (req, res) => {
+app.put('/api/orders/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const { state } = req.body;
@@ -206,7 +313,7 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/orders/:id', async (req, res) => {
+app.delete('/api/orders/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     await Order.findByIdAndDelete(id);
@@ -217,7 +324,7 @@ app.delete('/api/orders/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/orders', async (req, res) => {
+app.delete('/api/orders', authenticateJWT, async (req, res) => {
   try {
     await Order.deleteMany({});
     res.json({ message: 'All orders cleared successfully' });
@@ -227,14 +334,13 @@ app.delete('/api/orders', async (req, res) => {
   }
 });
 
-// ========== CONTACT ROUTES ==========
+// Contact Routes
 app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, phone, message } = req.body;
     if (!name || !email || !phone || !message) {
       return res.status(400).json({ message: 'All fields are required' });
     }
-
     const contact = new Contact({ name, email, phone, message });
     await contact.save();
     res.status(201).json({ message: 'Contact message sent successfully' });
@@ -244,7 +350,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-app.get('/api/superadmin/contacts', async (req, res) => {
+app.get('/api/superadmin/contacts', authenticateJWT, async (req, res) => {
   try {
     const contacts = await Contact.find().sort({ createdAt: -1 });
     res.json(contacts);
@@ -254,8 +360,8 @@ app.get('/api/superadmin/contacts', async (req, res) => {
   }
 });
 
-// ========== ANALYTICS ==========
-app.get('/api/superadmin/analytics', async (req, res) => {
+// Analytics
+app.get('/api/superadmin/analytics', authenticateJWT, async (req, res) => {
   try {
     const [totalProducts, totalOrders, pendingOrders, deliveredOrders, totalContacts] = await Promise.all([
       Product.countDocuments(),
@@ -264,13 +370,11 @@ app.get('/api/superadmin/analytics', async (req, res) => {
       Order.countDocuments({ state: 'Delivered' }),
       Contact.countDocuments()
     ]);
-
     const revenue = await Order.aggregate([
       { $match: { state: 'Delivered' } },
       { $unwind: '$products' },
-      { $group: { _id: null, total: { $sum: '$products.price' } } }
+      { $group: { _id: null, total: { $sum: { $multiply: ['$products.price', '$products.quantity'] } } } }
     ]);
-
     const monthlyRevenue = await Order.aggregate([
       { $match: { state: 'Delivered' } },
       { $unwind: '$products' },
@@ -280,17 +384,15 @@ app.get('/api/superadmin/analytics', async (req, res) => {
             year: { $year: '$createdAt' },
             month: { $month: '$createdAt' }
           },
-          total: { $sum: '$products.price' }
+          total: { $sum: { $multiply: ['$products.price', '$products.quantity'] } }
         }
       },
       { $sort: { '_id.year': -1, '_id.month': -1 } },
       { $limit: 12 }
     ]);
-
     const recentOrders = await Order.find().sort({ createdAt: -1 }).limit(10);
     const recentProducts = await Product.find().sort({ createdAt: -1 }).limit(10);
     const recentContacts = await Contact.find().sort({ createdAt: -1 }).limit(10);
-
     res.json({
       stats: {
         totalProducts,
@@ -307,37 +409,6 @@ app.get('/api/superadmin/analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
-    res.status(500).json({ message: 'Server error', error });
-  }
-});
-
-// ========== SUPERADMIN ROUTES ==========
-app.get('/api/superadmin/orders', async (req, res) => {
-  try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ message: 'Server error', error });
-  }
-});
-
-app.get('/api/superadmin/products', async (req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ message: 'Server error', error });
-  }
-});
-
-app.get('/api/superadmin/contacts', async (req, res) => {
-  try {
-    const contacts = await Contact.find().sort({ createdAt: -1 });
-    res.json(contacts);
-  } catch (error) {
-    console.error('Error fetching contacts:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
